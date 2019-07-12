@@ -1,0 +1,930 @@
+"AWSTemplateFormatVersion": "2010-09-09"
+Description: create a new shared subnet and bastion subnet, instance with jenkins in shared
+Parameters:
+  VPCName:
+    Description: Name of the VPC
+    Type: String
+    Default: Test
+  PublicInstanceName:
+    Description: Name of the Public Instance
+    Type: String
+    Default: Nginx
+  PrivateInstanceName:
+    Description: Name of the private Instance
+    Type: String
+    Default: NodeJS
+  DataInstanceName:
+    Description: Name of the Data Instance
+    Type: String
+    Default: MySQL
+  CIDRRange:
+    Description: VPC CIDR Range
+    Type: String
+    Default: 192.168.0.0/16
+  PublicSubnetCidr:
+    Description:  CIDR Range for Public subnet
+    Type: String
+    Default: 192.168.1.0/24
+  PrivateSubnetCidr:
+    Description:  CIDR Range for Private subnet
+    Type: String
+    Default: 192.168.2.0/24
+  DataSubnetCidr:
+    Description:  CIDR Range for data subnet
+    Type: String
+    Default: 192.168.3.0/24
+  DataSubnetCidr1b:
+    Description: CIDR Range for 2nd rds
+    Type: String
+    Default: 192.168.6.0/24
+  PublicSubnetCidr1b:
+    Description:  CIDR Range for Public subnet
+    Type: String
+    Default: 192.168.4.0/24
+  PrivateSubnetCidr1b:
+    Description:  CIDR Range for Private subnet
+    Type: String
+    Default: 192.168.5.0/24
+  BastionSubnetCidr1a:
+    Description:  CIDR Range for Bastion subnet
+    Type: String
+    Default: 192.168.7.0/24
+  SharedSubnetCidr1a:
+    Description: CIDR Range for Shared Subnet 1a
+    Type: String
+    Default: 192.168.8.0/24
+
+  PublicSecurityGroupName:
+    Description: Name of Public Security Group
+    Type: String
+    Default: Nginx_SG
+  PrivateSecurityGroupName:
+    Description: Name of Private Securtiy Group
+    Type: String
+    Default: Node_SG
+  DataSecurityGroupName:
+    Description: Name of Data Security Group
+    Type: String
+    Default: MySQL_SG
+  SSHLocation:
+    Description: The IP address range that can be used to SSH to the EC2 instances
+    Type: String
+    MinLength: 9
+    MaxLength: 18
+    Default: 0.0.0.0/0
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  InstanceType:
+    Description:  EC2 instance Type
+    Type: String
+    Default: t2.micro
+    AllowedValues: [t1.micro, t2.nano, t2.micro, t2.small, t2.medium, t2.large, m1.small,
+      m1.medium, m1.large, m1.xlarge, m2.xlarge, m2.2xlarge, m2.4xlarge, m3.medium,
+      m3.large, m3.xlarge, m3.2xlarge, m4.large, m4.xlarge, m4.2xlarge, m4.4xlarge,
+      m4.10xlarge, c1.medium, c1.xlarge, c3.large, c3.xlarge, c3.2xlarge, c3.4xlarge,
+      c3.8xlarge, c4.large, c4.xlarge, c4.2xlarge, c4.4xlarge, c4.8xlarge, g2.2xlarge,
+      g2.8xlarge, r3.large, r3.xlarge, r3.2xlarge, r3.4xlarge, r3.8xlarge, i2.xlarge,
+      i2.2xlarge, i2.4xlarge, i2.8xlarge, d2.xlarge, d2.2xlarge, d2.4xlarge, d2.8xlarge,
+      hi1.4xlarge, hs1.8xlarge, cr1.8xlarge, cc2.8xlarge, cg1.4xlarge]
+    ConstraintDescription: must be a valid EC2 instance type
+  Ami:
+    Description: Amazon Machine Image ID
+    Type: String
+    Default : "ami-04681a1dbd79675a5"
+  KeyPair:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+  WebAppPrivateIP:
+    Description: IP of Web App Server
+    Type: String
+    Default: 192.168.2.4
+  WebAppPrivateIP1b:
+    Description: IP of Web App Server
+    Type: String
+    Default: 192.168.5.4
+  AvailabilityZoneForVPC:
+    Description: 1st AZ
+    Type: String
+    Default: us-east-1a
+  AvailabilityZone1b:
+    Description: 2nd AZ
+    Type: String
+    Default: us-east-1b
+Resources:
+  VPCBase:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref CIDRRange
+      EnableDnsSupport: True
+      EnableDnsHostnames: True
+      Tags:
+        - Key: "Name"
+          Value: !Join [":",[ !Ref "AWS::StackName",-VPC]]
+        - Key: Name
+          Value: !Ref VPCName
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Ref AvailabilityZoneForVPC
+      CidrBlock: !Ref PublicSubnetCidr
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Join [":",[ !Ref "AWS::StackName",-PubSub]]
+      VpcId: !Ref VPCBase
+  PublicSubnet1b:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Ref AvailabilityZone1b
+      CidrBlock: !Ref PublicSubnetCidr1b
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Join [":",[ !Ref "AWS::StackName",-PubSub_1b]]
+      VpcId: !Ref VPCBase
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Ref AvailabilityZoneForVPC
+      CidrBlock: !Ref PrivateSubnetCidr
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Join [":",[ !Ref "AWS::StackName",-PriSub]]
+      VpcId: !Ref VPCBase
+  PrivateSubnet1b:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Ref AvailabilityZone1b
+      CidrBlock: !Ref PrivateSubnetCidr1b
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Join [":",[ !Ref "AWS::StackName",-PriSub_1b]]
+      VpcId: !Ref VPCBase
+  DataSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Ref AvailabilityZoneForVPC
+      CidrBlock: !Ref DataSubnetCidr
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: "Name"
+          Value: !Join [":",[ !Ref "AWS::StackName",-datSub]]
+      VpcId: !Ref VPCBase
+  DataSubnet1b:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPCBase
+      AvailabilityZone: !Ref AvailabilityZone1b
+      CidrBlock: !Ref DataSubnetCidr1b
+      MapPublicIpOnLaunch: false
+      Tags:
+        -
+         Key: Name
+         Value: DataBase Subnet_1b
+  BastionSubnet1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPCBase
+      AvailabilityZone: !Ref AvailabilityZoneForVPC
+      CidrBlock: !Ref BastionSubnetCidr1a
+      MapPublicIpOnLaunch: True
+      Tags:
+        - Key: Name
+          Value: !Join [":",[ !Ref "AWS::StackName",-Bastion_1a]]
+  SharedSubnet1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPCBase
+      AvailabilityZone: !Ref AvailabilityZoneForVPC
+      CidrBlock: !Ref SharedSubnetCidr1a
+      MapPublicIpOnLaunch: True
+      Tags:
+        - Key: Name
+          Value: !Join [":",[ !Ref "AWS::StackName",-SharedSubnet_1a]]
+
+  PublicSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Enable HTTP, HTTPS, Bastion Traffic"
+      VpcId: !Ref VPCBase
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          SourceSecurityGroupId: !GetAtt BastionSG.GroupId
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Ref PublicSecurityGroupName
+  PrivateSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: PublicSecurityGroup
+    DependsOn: BastionSG
+    Properties:
+      GroupDescription: "Enable SSH from Bastion and traffic from Public Subnet"
+      VpcId: !Ref VPCBase
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          SourceSecurityGroupId: !GetAtt PublicSecurityGroup.GroupId
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          SourceSecurityGroupId: !GetAtt ElbSecurityGroupForApp.GroupId
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          SourceSecurityGroupId: !GetAtt BastionSG.GroupId
+      Tags:
+        - Key: Name
+          Value: !Ref PrivateSecurityGroupName
+  DataSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: PublicSecurityGroup
+    DependsOn: PrivateSecurityGroup
+    Properties:
+      GroupDescription: "Enable SSH from PublicSG and traffic from privateSG"
+      VpcId: !Ref VPCBase
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !GetAtt PrivateSecurityGroup.GroupId
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          SourceSecurityGroupId: !GetAtt BastionSG.GroupId
+      Tags:
+        - Key: Name
+          Value: !Ref DataSecurityGroupName
+  ElbSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Allow http,https and ssh from My IP.
+        VpcId: !Ref VPCBase
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        Tags:
+          -
+           Key: "Name"
+           Value: "ElbSecurityGroup"
+  ElbSecurityGroupForApp:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Allow traffic from Web
+        VpcId: !Ref VPCBase
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          CidrIp: 192.168.0.0/16
+        Tags:
+          -
+           Key: "Name"
+           Value: "ElbSecurityGroupForAppServer"
+  BastionSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow traffic from My IP
+      VpcId: !Ref VPCBase
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref SSHLocation
+      Tags:
+        - Key: Name
+          Value: !Join [":",[!Ref "AWS::StackName",-BastionSG]]
+  JenkinsSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow traffic from HTTP and 8080
+      VpcId: !Ref VPCBase
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          SourceSecurityGroupId: !GetAtt BastionSG.GroupId
+      Tags:
+        - Key: Name
+          Value: !Join [":",[!Ref "AWS::StackName",-JenkinsSG]]
+  ELB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      SecurityGroups:
+        -
+          !Ref ElbSecurityGroup
+      Subnets:
+        -
+          !Ref PublicSubnet
+        -
+          !Ref PublicSubnet1b
+      Tags:
+        -
+          Key: Name
+          Value: !Join ["",[!Ref "AWS::StackName","-ELB_for_web"]]
+  TaskTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn:
+      - PublicInstance
+      - PublicInstance1b
+
+    Properties:
+      HealthCheckIntervalSeconds: 20
+      HealthCheckPath: /   # like a root access
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 4
+      UnhealthyThresholdCount: 2
+      Matcher:
+        HttpCode: '200'
+      Port: 80
+      Protocol: HTTP
+      TargetGroupAttributes:
+        - Key: stickiness.enabled
+          Value: true
+        - Key: stickiness.lb_cookie.duration_seconds
+          Value: 20
+      Targets:
+        - Id:
+            Ref: PublicInstance
+          Port: 80
+        - Id:
+            Ref: PublicInstance1b
+          Port: 80
+      VpcId: !Ref VPCBase
+  TaskListner:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn:
+          Ref: TaskTargetGroup
+      LoadBalancerArn: !Ref ELB
+      Port: '80'
+      Protocol: HTTP
+  ELBforAppServer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internal
+      SecurityGroups:
+        -
+          !Ref ElbSecurityGroupForApp
+      Subnets:
+        -
+          !Ref PrivateSubnet
+        -
+          !Ref PrivateSubnet1b
+      Tags:
+        -
+          Key: Name
+          Value: !Join ["",[!Ref "AWS::StackName","-ELB_for_APP"]]
+  TaskTargetGroupForApp:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn:
+      - PrivateInstance
+      - PrivateInstance1b
+
+    Properties:
+      HealthCheckIntervalSeconds: 20
+      HealthCheckPath: /   # like a root access
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 4
+      UnhealthyThresholdCount: 2
+      Matcher:
+        HttpCode: '200'
+      Port: 80
+      Protocol: HTTP
+      TargetGroupAttributes:
+        - Key: stickiness.enabled
+          Value: true
+        - Key: stickiness.lb_cookie.duration_seconds
+          Value: 20
+      Targets:
+        - Id:
+            Ref: PrivateInstance
+          Port: 3000
+        - Id:
+            Ref: PrivateInstance1b
+          Port: 3000
+      VpcId: !Ref VPCBase
+  TaskListnerForApp:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn: !Ref TaskTargetGroupForApp
+      LoadBalancerArn: !Ref ELBforAppServer
+      Port: '3000'
+      Protocol: HTTP
+  BastionEip1a:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref BastionInstance1a
+  BastionInstance1a:
+    Type: AWS::EC2::Instance
+    DependsOn: MainRoute
+    Properties:
+      SubnetId: !Ref BastionSubnet1a
+      ImageId: !Ref Ami
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyPair
+      SecurityGroupIds:
+        - !Ref BastionSG
+      Tags:
+        - Key: Name
+          Value: !Join ["",[!Ref "AWS::StackName","-Bastion_1a"]]
+  JenkinsInstance1a:
+    Type: AWS::EC2::Instance
+    DependsOn: MainRoute
+    Properties:
+      SubnetId: !Ref SharedSubnet1a
+      ImageId: !Ref Ami
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyPair
+      SecurityGroupIds:
+        - !Ref JenkinsSG
+      Tags:
+        - Key: Name
+          Value: !Join ["",[!Ref "AWS::StackName","-Jenkins"]]
+      UserData:
+        Fn::Base64: !Sub |                         #substitute, where we could substitute one resource to another
+         #!/bin/bash
+         yum update -y
+         sudo yum -y remove java
+         sudo yum -y install java-1.8.0-openjdk
+         sudo wget -O /etc/yum.repos.d/jenkins.repo http://pkg.jenkins-ci.org/redhat-stable/jenkins.repo
+         sudo rpm --import https://jenkins-ci.org/redhat/jenkins-ci.org.key
+         sudo yum -y install jenkins-2.121.1
+         sudo systemctl enable jenkins
+         sudo systemctl start jenkins
+
+
+  PublicInstance:
+    Type: AWS::EC2::Instance
+    DependsOn: MainRoute
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      ImageId: !Ref Ami
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyPair
+      SecurityGroupIds:
+        - !Ref PublicSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Join ["",[!Ref "AWS::StackName","-PubEC2"]]
+        - Key: Name
+          Value: !Ref PublicInstanceName
+      UserData:
+        Fn::Base64: !Sub |                         #substitute, where we could substitute one resource to another
+         #!/bin/bash
+         yum update -y
+         amazon-linux-extras install -y nginx1.12
+         service nginx start
+         echo "
+         user nginx;
+         worker_processes auto;
+         error_log /var/log/nginx/error.log;
+         pid /run/nginx.pid;
+         include /usr/share/nginx/modules/*.conf;
+
+         events {
+             worker_connections 1024;
+         }
+
+         http {
+            log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+          access_log  /var/log/nginx/access.log  main;
+
+          sendfile            on;
+          tcp_nopush          on;
+          tcp_nodelay         on;
+          keepalive_timeout   65;
+          types_hash_max_size 2048;
+
+          include             /etc/nginx/mime.types;
+          default_type        application/octet-stream;
+          include /etc/nginx/conf.d/*.conf;
+          server {
+             listen       80 default_server;
+             listen       [::]:80 default_server;
+             server_name  _;
+             root         /usr/share/nginx/html;
+             include /etc/nginx/default.d/*.conf;
+             location / {
+                 proxy_pass http://${ELBforAppServer.DNSName}:3000;
+
+              }
+              error_page 404 /404.html;
+              location = /40x.html {
+              }
+              error_page 500 502 503 504 /50x.html;
+              location = /50x.html {
+              }
+          }
+          }" > /etc/nginx/nginx.conf
+         sudo service nginx restart
+         sudo systemctl enable nginx
+
+
+  PublicInstance1b:
+    Type: AWS::EC2::Instance
+    DependsOn: MainRoute
+    Properties:
+      SubnetId: !Ref PublicSubnet1b
+      ImageId: !Ref Ami
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyPair
+      SecurityGroupIds:
+        - !Ref PublicSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Join ["",[!Ref "AWS::StackName","-PubEC2"]]
+        - Key: Name
+          Value: !Ref PublicInstanceName
+      UserData:
+        Fn::Base64: !Sub |
+         #!/bin/bash
+         yum update -y
+         amazon-linux-extras install -y nginx1.12
+         service nginx start
+         echo "
+         user nginx;
+         worker_processes auto;
+         error_log /var/log/nginx/error.log;
+         pid /run/nginx.pid;
+         include /usr/share/nginx/modules/*.conf;
+
+         events {
+             worker_connections 1024;
+         }
+
+         http {
+            log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+          access_log  /var/log/nginx/access.log  main;
+
+          sendfile            on;
+          tcp_nopush          on;
+          tcp_nodelay         on;
+          keepalive_timeout   65;
+          types_hash_max_size 2048;
+
+          include             /etc/nginx/mime.types;
+          default_type        application/octet-stream;
+          include /etc/nginx/conf.d/*.conf;
+          server {
+             listen       80 default_server;
+             listen       [::]:80 default_server;
+             server_name  _;
+             root         /usr/share/nginx/html;
+             include /etc/nginx/default.d/*.conf;
+             location / {
+                 proxy_pass http://${ELBforAppServer.DNSName}:3000;
+
+              }
+              error_page 404 /404.html;
+              location = /40x.html {
+              }
+              error_page 500 502 503 504 /50x.html;
+              location = /50x.html {
+              }
+          }
+          }" > /etc/nginx/nginx.conf
+         sudo service nginx restart
+         sudo systemctl enable nginx
+
+  PrivateInstance:
+    Type: AWS::EC2::Instance
+    DependsOn: Natgateway
+    DependsOn: DataInstance
+    DependsOn: MainRoute
+    Properties:
+      SubnetId: !Ref PrivateSubnet
+      ImageId: !Ref Ami
+      InstanceType: !Ref InstanceType
+      PrivateIpAddress: !Ref WebAppPrivateIP
+      KeyName: !Ref KeyPair
+      SecurityGroupIds:
+        - !Ref PrivateSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Join ["",[!Ref "AWS::StackName","-PriEC2"]]
+        - Key: Name
+          Value: !Ref PrivateInstanceName
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          curl --silent --location https://rpm.nodesource.com/setup_10.x | sudo bash -
+          yum -y install nodejs
+          yum install -y  gcc-c++ make
+          npm install -y express
+          npm install pm2 -g
+          npm install -y mysql
+          echo " var express = require('express'),
+          app = express(),
+          server = require('http').createServer(app);
+
+          var mysql      = require('mysql');
+          var connection = mysql.createConnection({
+              host     : '${RDS.Endpoint.Address}',
+              user     : 'sai',
+              password : 'sairam123',
+              database : 'mysql',
+              port: 3306
+          });
+
+          connection.connect(function(err) {
+              if (err) {
+                  console.error('error connecting: ' + err.stack);
+                  return;
+              }
+          });
+
+          app.get('/', function(req,res){
+
+              var query = connection.query('SELECT VARIABLE_NAME, VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS ', function(err, result,fields) {
+                  if (err) throw err;
+              res.send(result);
+              });
+          });
+
+          app.listen(3000);" > home/app.js
+          sudo pm2 startup systemd
+          sudo systemctl enable pm2-root
+          sudo pm2 start /home/app.js
+          sudo pm2 save
+          sudo systemctl start pm2-root
+
+  PrivateInstance1b:
+    Type: AWS::EC2::Instance
+    DependsOn: Natgateway
+    DependsOn: DataInstance
+    DependsOn: MainRoute
+    Properties:
+      SubnetId: !Ref PrivateSubnet1b
+      ImageId: !Ref Ami
+      InstanceType: !Ref InstanceType
+      PrivateIpAddress: !Ref WebAppPrivateIP1b
+      KeyName: !Ref KeyPair
+      SecurityGroupIds:
+        - !Ref PrivateSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Join ["",[!Ref "AWS::StackName","-PriEC2_1b"]]
+        - Key: Name
+          Value: !Ref PrivateInstanceName
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          curl --silent --location https://rpm.nodesource.com/setup_10.x | sudo bash -
+          yum -y install nodejs
+          yum install -y  gcc-c++ make
+          npm install -y express
+          npm install pm2 -g
+          npm install -y mysql
+          echo " var express = require('express'),
+          app = express(),
+          server = require('http').createServer(app);
+
+          var mysql      = require('mysql');
+          var connection = mysql.createConnection({
+              host     : '${RDS.Endpoint.Address}',
+              user     : 'sai',
+              password : 'sairam123',
+              database : 'mysql',
+              port: 3306
+          });
+
+          connection.connect(function(err) {
+              if (err) {
+                  console.error('error connecting: ' + err.stack);
+                  return;
+              }
+          });
+
+          app.get('/', function(req,res){
+
+              var query = connection.query('SELECT VARIABLE_NAME, VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS ', function(err, result,fields) {
+                  if (err) throw err;
+              res.send(result);
+              });
+          });
+
+          app.listen(3000);" > home/app.js
+          sudo pm2 startup systemd
+          sudo systemctl enable pm2-root
+          sudo pm2 start /home/app.js
+          sudo pm2 save
+          sudo systemctl start pm2-root
+  RdsSecurityGroup:
+    Type: AWS::RDS::DBSecurityGroup
+    Properties:
+      EC2VpcId: !Ref VPCBase
+      DBSecurityGroupIngress:
+        - EC2SecurityGroupId: !Ref PrivateSecurityGroup
+      GroupDescription: "RDS securtiy Group"
+      Tags:
+        - Key: Name
+          Value: !Join ["",[!Ref "AWS::StackName","RdsSG"]]
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    DependsOn:
+      - DataSubnet
+      - DataSubnet1b
+    Properties:
+      DBSubnetGroupDescription: "Db subnet group "
+      SubnetIds:
+        - !Ref DataSubnet
+        - !Ref DataSubnet1b
+  RDS:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: '5'
+      AvailabilityZone: !Ref AvailabilityZoneForVPC
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      DBInstanceClass: db.t2.micro
+      Engine: MySQL
+      MasterUsername: sai
+      MasterUserPassword: sairam123
+      DBSecurityGroups:
+        - !Ref RdsSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Join ["",[!Ref "AWS::StackName",RDSMySQL]]
+
+  ElasticIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      #InstanceId: !Ref PublicInstance
+      Domain: vpc
+  ElasticIP1b:
+    Type: AWS::EC2::EIP
+    Properties:
+      #InstanceId: !Ref PublicInstance
+      Domain: vpc
+  Natgateway:
+    DependsOn: IGatewayAttachment
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt ElasticIP.AllocationId
+      SubnetId: !Ref PublicSubnet
+      Tags:
+        - Key: Name
+          Value: !Join ["",[!Ref "AWS::StackName","-Nat"]]
+  Natgateway1b:
+    DependsOn: IGatewayAttachment
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt ElasticIP1b.AllocationId
+      SubnetId: !Ref PublicSubnet1b
+      Tags:
+        - Key: Name
+          Value: !Join ["",[!Ref "AWS::StackName","-Nat_1b"]]
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value:
+            Ref: AWS::StackName
+  IGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId:
+        Ref: InternetGateway
+      VpcId:
+        !Ref VPCBase
+  CustomRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPCBase
+      Tags:
+        - Key: Name
+          Value:
+            !Join [":", [!Ref "AWS::StackName",-PublicRT]]
+  MainRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPCBase
+      Tags:
+        - Key: Name
+          Value:
+            !Join [":", [!Ref "AWS::StackName",-PrivateRT]]
+
+
+  CustomRoute:
+    Type: AWS::EC2::Route
+    DependsOn: IGatewayAttachment
+#    DependsOn: CustomRouteTable
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref CustomRouteTable
+  MainRoute:
+    Type: AWS::EC2::Route
+    DependsOn: IGatewayAttachment
+    DependsOn: Natgateway
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref Natgateway
+      RouteTableId: !Ref MainRouteTable
+  PublicSubnetRouteTableAssosiation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn: CustomRouteTable
+    DependsOn: PublicSubnet
+    Properties:
+      RouteTableId: !Ref CustomRouteTable
+      SubnetId: !Ref PublicSubnet
+  PublicSubnetRouteTableAssosiation1b:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn: CustomRouteTable
+    DependsOn: PublicSubnet1b
+    Properties:
+      RouteTableId: !Ref CustomRouteTable
+      SubnetId: !Ref PublicSubnet1b
+  PrivateSubnetRouteAssosiation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn: MainRouteTable
+    DependsOn: PrivateSubnet
+    DependsOn: DataSubnet
+    Properties:
+      RouteTableId: !Ref MainRouteTable
+      SubnetId: !Ref PrivateSubnet
+      SubnetId: !Ref DataSubnet
+  PrivateSubnetRouteAssosiation1b:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn: MainRouteTable
+    DependsOn: PrivateSubnet1b
+    DependsOn: DataSubnet1b
+    Properties:
+      RouteTableId: !Ref MainRouteTable
+      SubnetId: !Ref PrivateSubnet1b
+      SubnetId: !Ref DataSubnet1b
+  DataSubnetRouteAssosiation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn: MainRouteTable
+    DependsOn: PrivateSubnet
+    DependsOn: DataSubnet
+    Properties:
+      RouteTableId: !Ref MainRouteTable
+      SubnetId: !Ref PrivateSubnet
+  DataSubnetRouteAssosiation1b:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn: MainRouteTable
+    DependsOn: PrivateSubnet1b
+    DependsOn: DataSubnet1b
+    Properties:
+      RouteTableId: !Ref MainRouteTable
+      SubnetId: !Ref PrivateSubnet1b
+  BastionSubnetRouteTableAssosiation1a:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn: CustomRouteTable
+    DependsOn: BastionSubnet1a
+    Properties:
+      RouteTableId: !Ref CustomRouteTable
+      SubnetId: !Ref BastionSubnet1a
+  SharedSubnetRouteTableAssosiation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn: CustomRouteTable
+    DependsOn: SharedSubnet1a
+    Properties:
+      RouteTableId: !Ref CustomRouteTable
+      SubnetId: !Ref SharedSubnet1a
+
+
+#Outputs:
+  #VpcId: Value:!Ref VPCBase
